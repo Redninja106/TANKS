@@ -62,4 +62,10 @@ internal class Box : IGameComponent, ICollider, IDestructable
     public ref Transform Transform => ref this.transform;
 
     public RenderLayer RenderLayer => RenderLayer.World;
+
+
+    interface IForce
+    {
+        Vector2 GetStrength(float t);
+    }
 }

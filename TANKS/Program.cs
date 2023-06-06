@@ -3,6 +3,7 @@ using Silk.NET.Windowing.Glfw;
 using SimulationFramework;
 using SimulationFramework.Desktop;
 using SimulationFramework.Drawing;
+using System.Diagnostics;
 using System.Numerics;
 using TANKS;
 using TANKS.Particles;

@@ -92,3 +92,33 @@ internal class Projectile : IGameComponent, ICollider
 
     public RenderLayer RenderLayer => RenderLayer.Projectiles;
 }
+
+
+class Box2 : IGameComponent, ICollider
+{
+    public RenderLayer RenderLayer => RenderLayer.Entities;
+
+    public bool IsStatic => true;
+    public ref Transform Transform => ref transform;
+
+    private Transform transform;
+
+    public Rectangle GetBounds()
+    {
+        return new Rectangle(0, 0, 1, 1, Alignment.Center);
+    }
+
+    public void OnCollision(ICollider other, Vector2 mtv)
+    {
+
+    }
+
+    public void Render(ICanvas canvas)
+    {
+        canvas.DrawRect(0, 0, 1, 1, Alignment.Center);
+    }
+
+    public void Update()
+    {
+    }
+}

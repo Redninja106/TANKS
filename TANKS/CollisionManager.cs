@@ -120,35 +120,36 @@ internal class CollisionManager
 
         mtv = leastOverlapAxis * leastOverlap;
         return true;
-    }
 
-    private void GetAxes(Span<Vector2> shape, Span<Vector2> axes)
-    {
-        for (int i = 0; i < shape.Length - 1; i++)
+        static void GetAxes(Span<Vector2> shape, Span<Vector2> axes)
         {
-            Vector2 side = shape[i] - shape[i + 1];
-            axes[i] = new(side.Y, -side.X);
-            axes[i] = axes[i].Normalized();
+            for (int i = 0; i < shape.Length - 1; i++)
+            {
+                Vector2 side = shape[i] - shape[i + 1];
+                axes[i] = new(side.Y, -side.X);
+                axes[i] = axes[i].Normalized();
+            }
+        }
+
+        static void Project(Span<Vector2> shape, Vector2 axis, out float min, out float max)
+        {
+            min = float.PositiveInfinity;
+            max = float.NegativeInfinity;
+
+            for (int i = 0; i < shape.Length; i++)
+            {
+                Vector2 vertex = shape[i];
+
+                float dot = Vector2.Dot(vertex, axis);
+
+                min = Math.Min(min, dot);
+                max = Math.Max(max, dot);
+            }
         }
     }
 
-    private void Project(Span<Vector2> shape, Vector2 axis, out float min, out float max)
-    {
-        min = float.PositiveInfinity;
-        max = float.NegativeInfinity;
 
-        for (int i = 0; i < shape.Length; i++)
-        {
-            Vector2 vertex = shape[i];
-
-            float dot = Vector2.Dot(vertex, axis);
-
-            min = Math.Min(min, dot);
-            max = Math.Max(max, dot);
-        }
-    }
-
-    private void GetOBB(Rectangle rectangle, Transform transform, Span<Vector2> result)
+    private static void GetOBB(Rectangle rectangle, Transform transform, Span<Vector2> result)
     {
         result[0] = transform.Position + rectangle.GetAlignedPoint(Alignment.TopLeft).Rotated(transform.Rotation);
         result[1] = transform.Position + rectangle.GetAlignedPoint(Alignment.TopRight).Rotated(transform.Rotation);

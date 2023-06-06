@@ -10,7 +10,7 @@ internal enum RenderLayer
     Background,
     World,
     Projectiles,
-    Vehicles,
+    Entities,
     Particles,
     UI,
 }

@@ -6,16 +6,17 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using TANKS.Particles;
 
 namespace TANKS;
 
 internal class Tank : IGameComponent, ICollider, IInspectable
 {
-    const float TankWidth = 1f;
+    const float TankWidth = .95f;
     const float TankHeight = TankWidth * (2f/3f);
 
-    const float TurretOffset = .05f;
+    const float TurretOffset = .075f;
     const float TurretLength = 1;
     
     const float TreadWidth = TankWidth * .8f;
@@ -25,10 +26,9 @@ internal class Tank : IGameComponent, ICollider, IInspectable
     const float ExhaustWidth = .25f;
     const float ExhaustHeight = .15f;
 
-
-    public float turnSpeed = 5;
+    public float turnSpeed = 7;
     public float turretTurnSpeed = 3;
-    public float acceleration = 5;
+    public float acceleration = 3;
     public float drag = .25f;
     public float rotDrag = .25f;
     public float brakes = .99f;
@@ -54,7 +54,7 @@ internal class Tank : IGameComponent, ICollider, IInspectable
 
     public ref Transform Transform => ref transform;
 
-    public RenderLayer RenderLayer => RenderLayer.Vehicles;
+    public RenderLayer RenderLayer => RenderLayer.Entities;
 
     public void OnCollision(ICollider other, Vector2 mtv)
     {
@@ -82,14 +82,17 @@ internal class Tank : IGameComponent, ICollider, IInspectable
             }
         }
 
-        float cross = Vector3.Cross(new(mtv, 0), new(tankHitNormal, 0)).Z;
-        transform.Rotation -= cross;
+        float cross = Vector3.Cross(new(tankHitNormal, 0), new(mtv.Normalized(), 0)).Z;
+        transform.Rotation += cross * Time.DeltaTime;
 
-        float dot = Vector2.Dot(-mtv.Normalized(), transform.Forward);
-        dot = Math.Clamp(dot, 0, 1);
-        float a = MathF.Acos(dot);
-        speed *= MathF.Pow(a / (MathF.PI/2), Time.DeltaTime);
-        angularVelocity *= a / (MathF.PI/2);
+        float dot = Vector2.Dot(-mtv.Normalized(), MathF.Sign(speed) * transform.Forward);
+        dot = 1f - Math.Clamp(dot, 0, 1);
+        dot *= dot;
+        if (Vector2.Dot(MathF.Sign(speed) * transform.Forward, mtv) < 0)
+        {
+            speed *= MathF.Pow(dot, Time.DeltaTime);
+            angularVelocity *= MathF.Pow(dot, Time.DeltaTime);
+        }
     }
 
     Vector2 target = default;
@@ -122,7 +125,7 @@ internal class Tank : IGameComponent, ICollider, IInspectable
 
         canvas.StrokeWidth(.05f);
         canvas.Stroke(Color.Black);
-        canvas.DrawRect(0, 0, TankWidth, TankHeight, Alignment.Center);
+        canvas.DrawRect(0, 0, TankWidth - .025f, TankHeight - .025f, Alignment.Center);
 
         canvas.Translate(TurretOffset, 0);
         canvas.Rotate(turretRotation);
@@ -132,18 +135,24 @@ internal class Tank : IGameComponent, ICollider, IInspectable
 
         canvas.StrokeWidth(.05f);
         canvas.Stroke(Color.Black);
-        canvas.DrawRect(0, 0, TurretLength, .1f, Alignment.CenterLeft);
+        canvas.DrawRect(0, 0, TurretLength - .025f, .1f - .025f, Alignment.CenterLeft);
 
         canvas.Fill(Color);
-        canvas.DrawCircle(0, 0, TankHeight / 2f);
+        canvas.DrawCircle(0, 0, TankHeight / 2f - .025f);
 
         canvas.StrokeWidth(.05f);
         canvas.Stroke(Color.Black);
-        canvas.DrawCircle(0, 0, TankHeight / 2f);
+        canvas.DrawCircle(0, 0, TankHeight / 2f - .025f);
 
         canvas.PopState();
-
         var turretTransform = this.transform.Translated(new(TurretOffset, 0)).Rotated(turretRotation).Translated(Vector2.UnitX);
+
+        Vector2 turretVelocity = this.transform.Forward * this.speed;
+        turretVelocity += CentrifugalForce(this.transform.Position, turretTransform.Position, this.angularVelocity);
+        turretVelocity += CentrifugalForce(this.transform.Translated(new(TurretOffset, 0)).Position, turretTransform.Position, turretTurnSpeed);
+
+        var direction = turretVelocity + turretTransform.Forward * 25;
+        
         if (Program.World.Collision.RayCast(turretTransform.Position, turretTransform.Forward, 100, collider => collider is not Projectile, out RayCastHit hit))
         {
             canvas.StrokeWidth(.05f);
@@ -202,8 +211,8 @@ internal class Tank : IGameComponent, ICollider, IInspectable
 
         Vector2 targetMousePosition = (forecastedPosition + transform.Position + Program.MousePosition) / 3f;
 
-        Program.Camera.Transform.Position = Vector2.Lerp(Program.Camera.Transform.Position, targetMousePosition, LerpFactor(.02f));
-        Program.Camera.Transform.Rotation = MathHelper.Lerp(Program.Camera.Transform.Rotation, this.transform.Rotation+MathF.PI/2f, LerpFactor(.02f));
+        Program.Camera.Transform.Position = Vector2.Lerp(Program.Camera.Transform.Position, targetMousePosition, LerpFactor(0.001f));
+        Program.Camera.Transform.Rotation = Angle.Lerp(Program.Camera.Transform.Rotation, this.transform.Rotation+MathF.PI/2f, LerpFactor(.02f));
         Program.Camera.VerticalSize = MathHelper.Lerp(Program.Camera.VerticalSize, 15 * zoomFactor, LerpFactor(.01f));
 
         Vector2 diff = Program.MousePosition - transform.Translated(new(TurretOffset, 0)).Position;
@@ -214,18 +223,9 @@ internal class Tank : IGameComponent, ICollider, IInspectable
 
         float currentRotation = turretRotation + transform.Rotation;
 
-        float dist = Angle.Distance(currentRotation, targetTurretRotation);
-
         float turretDiff = currentRotation;
 
-        if (dist < d) 
-        {
-            currentRotation = targetTurretRotation;
-        }
-        else 
-        {
-            currentRotation = Angle.Lerp(currentRotation, targetTurretRotation, d / dist);
-        }
+        currentRotation = Angle.Step(currentRotation, targetTurretRotation, d);
 
         turretDiff = currentRotation - turretDiff;
 
@@ -269,19 +269,28 @@ internal class Tank : IGameComponent, ICollider, IInspectable
     {
         var diff = point - center;
 
-        var radius = diff.Length();
-
-        float force = radius * angularVelocity;
-
-        diff = diff.Normalized();
-
         Vector2 perpendicular = new(diff.Y, -diff.X);
 
-        return perpendicular * force;
+        return perpendicular * angularVelocity;
     }
 
     public void Layout()
     {
         ImGui.Text("HELL WORLD");
+    }
+
+    private static float Cross(Vector2 a, Vector2 b)
+    {
+        return a.X * b.Y - a.Y * b.X;
+    }
+
+    private static Vector2 Cross(Vector2 a, float s)
+    {
+        return new(s * a.Y, -s * a.X);
+    }
+
+    private static Vector2 Cross(float s, Vector2 a)
+    {
+        return new(-s * a.Y, s * a.X); 
     }
 }

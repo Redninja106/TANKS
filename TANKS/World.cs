@@ -61,5 +61,7 @@ internal class World
         }
 
         components.Sort((a, b) => Comparer<RenderLayer>.Default.Compare(a.RenderLayer, b.RenderLayer));
+
+        Stack<int> ints;
     }
 }
